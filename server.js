@@ -19,7 +19,8 @@ wss.on('connection', (ws) => {
                     ws.send(JSON.stringify({ type: 'error', message: 'Room already exists!' }));
                 } else {
                     rooms[data.room_name] = { password: data.password || "", players: {} };
-                    rooms[data.room_name].players[playerId] = { x: 0, y: 0, state: 'idle', flip_h: false };
+                    // Default state-la character ID-a serthu set pandrom
+                    rooms[data.room_name].players[playerId] = { x: 0, y: 0, state: data.char_id + '_idle', flip_h: false };
                     clientToRoom[playerId] = data.room_name;
                     ws.send(JSON.stringify({ type: 'room_created', room_name: data.room_name }));
                 }
@@ -51,7 +52,8 @@ wss.on('connection', (ws) => {
                     return;
                 }
                 
-                room.players[playerId] = { x: 0, y: 0, state: 'idle', flip_h: false };
+                // Player join aagum pothum avanga character ID-a set pandrom
+                room.players[playerId] = { x: 0, y: 0, state: data.char_id + '_idle', flip_h: false };
                 clientToRoom[playerId] = data.room_name;
 
                 ws.send(JSON.stringify({ type: 'join_success', room_name: data.room_name, players: room.players }));
@@ -70,7 +72,6 @@ wss.on('connection', (ws) => {
                 }
             }
             
-            // PUDHUSU: Box update block
             else if (data.type === 'update_box') {
                 const roomName = clientToRoom[playerId];
                 if (roomName && rooms[roomName]) {
