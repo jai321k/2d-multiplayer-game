@@ -1,63 +1,99 @@
 const WebSocket = require('ws');
-
-// Render.com auto-a oru PORT assign pannum, illana local-la 10000 use aagum
-const PORT = process.env.PORT || 10000; 
+const PORT = process.env.PORT || 10000;
 const wss = new WebSocket.Server({ port: PORT });
 
-let players = {}; // Game-la irukka ellaroda data-vaiyum store panna
+// Room data-va store panna
+let rooms = {}; // Example: { "MyRoom": { password: "123", players: { id: {x, y} } } }
+let clientToRoom = {}; // Entha player entha room-la irukkanga nu kandupudikka
 
 wss.on('connection', (ws) => {
-    // Pudhu player connect aana, avangalukku oru random ID assign panrom
     const playerId = Math.random().toString(36).substring(2, 9);
-    players[playerId] = { x: 0, y: 0, state: 'idle', flip_h: false };
-    
-    console.log(`Player Connected: ${playerId}`);
-
-    // 1. Connect aana player-ku avanga ID-a anuppurom
+    ws.id = playerId; // WebSocket object-laye ID-a save pandrom
     ws.send(JSON.stringify({ type: 'welcome', id: playerId }));
 
-    // 2. Already irukka players-oda data-va pudhu player-ku anuppurom
-    ws.send(JSON.stringify({ type: 'current_players', players: players }));
-
-    // 3. Matha ellarukkum "Pudhu player vanthurukkan" nu solrom
-    broadcast({ type: 'player_joined', id: playerId, data: players[playerId] }, ws);
-
-    // Player kitta irunthu message varum pothu (Movement & Animation updates)
     ws.on('message', (message) => {
         try {
             const data = JSON.parse(message);
+
+            // 1. Room Create Panrathu
+            if (data.type === 'create_room') {
+                if (rooms[data.room_name]) {
+                    ws.send(JSON.stringify({ type: 'error', message: 'Room already exists!' }));
+                } else {
+                    rooms[data.room_name] = { password: data.password || "", players: {} };
+                    rooms[data.room_name].players[playerId] = { x: 0, y: 0, state: 'idle', flip_h: false };
+                    clientToRoom[playerId] = data.room_name;
+                    
+                    ws.send(JSON.stringify({ type: 'room_created', room_name: data.room_name }));
+                }
+            }
             
-            if (data.type === 'update_position') {
-                // Server-la player data-va update panrom
-                players[playerId].x = data.x;
-                players[playerId].y = data.y;
-                players[playerId].state = data.state;
-                players[playerId].flip_h = data.flip_h;
+            // 2. Room List Kekkurathu (Join pandravangalukku)
+            else if (data.type === 'get_rooms') {
+                const roomList = Object.keys(rooms).map(name => ({
+                    name: name,
+                    has_password: rooms[name].password !== "" // True/False tharum
+                }));
+                ws.send(JSON.stringify({ type: 'room_list', rooms: roomList }));
+            }
+            
+            // 3. Room-la Join Panrathu
+            else if (data.type === 'join_room') {
+                const room = rooms[data.room_name];
+                if (!room) {
+                    ws.send(JSON.stringify({ type: 'error', message: 'Room not found!' }));
+                    return;
+                }
+                if (room.password !== "" && room.password !== data.password) {
+                    ws.send(JSON.stringify({ type: 'error', message: 'Wrong Password!' }));
+                    return;
+                }
                 
-                // Update aana position-a MATHA ellarukkum anuppurom
-                broadcast({ type: 'update_position', id: playerId, data: players[playerId] }, ws);
+                // Password correct / illana join panna vidu
+                room.players[playerId] = { x: 0, y: 0, state: 'idle', flip_h: false };
+                clientToRoom[playerId] = data.room_name;
+
+                ws.send(JSON.stringify({ type: 'join_success', room_name: data.room_name, players: room.players }));
+                
+                // Room-la ulla matha aalukku (Host-ku) ivana pathi sollanum
+                broadcastToRoom(data.room_name, { type: 'player_joined', id: playerId, data: room.players[playerId] }, ws);
+            }
+            
+            // 4. Position Update Panrathu (Antha room-la mattum anuppanum)
+            else if (data.type === 'update_position') {
+                const roomName = clientToRoom[playerId];
+                if (roomName && rooms[roomName]) {
+                    rooms[roomName].players[playerId] = { x: data.x, y: data.y, state: data.state, flip_h: data.flip_h };
+                    broadcastToRoom(roomName, { type: 'update_position', id: playerId, data: rooms[roomName].players[playerId] }, ws);
+                }
             }
         } catch (e) {
-            console.log("Invalid message format", e);
+            console.log("Error:", e);
         }
     });
 
-    // Player game-a vittu pogum pothu
+    // Player Disconnect aana
     ws.on('close', () => {
-        console.log(`Player Disconnected: ${playerId}`);
-        delete players[playerId];
-        broadcast({ type: 'player_left', id: playerId }); // Matha ellarukkum theriyapaduthurom
+        const roomName = clientToRoom[playerId];
+        if (roomName && rooms[roomName]) {
+            delete rooms[roomName].players[playerId];
+            broadcastToRoom(roomName, { type: 'player_left', id: playerId });
+            
+            // Room empty aagidicha nu check panni azhichidrom
+            if (Object.keys(rooms[roomName].players).length === 0) {
+                delete rooms[roomName];
+            }
+        }
+        delete clientToRoom[playerId];
     });
 });
 
-// Helper Function: Ellarukkum message anuppa (Exclude pannavangala thavira)
-function broadcast(data, excludeWs = null) {
+// Antha specific room-la irukkavangalukku mattum message anuppum function
+function broadcastToRoom(roomName, data, excludeWs = null) {
     const message = JSON.stringify(data);
     wss.clients.forEach((client) => {
-        if (client !== excludeWs && client.readyState === WebSocket.OPEN) {
+        if (client !== excludeWs && client.readyState === WebSocket.OPEN && clientToRoom[client.id] === roomName) {
             client.send(message);
         }
     });
 }
-
-console.log(`WebSocket server is running on port ${PORT}`);
