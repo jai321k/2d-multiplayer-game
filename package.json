@@ -1,0 +1,13 @@
+{
+  "name": "godot-multiplayer-server",
+  "version": "1.0.0",
+  "description": "Node.js WebSocket Server for Godot Game",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}
+
