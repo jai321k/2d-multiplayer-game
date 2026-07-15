@@ -14,26 +14,30 @@ wss.on('connection', (ws) => {
         try {
             const data = JSON.parse(message);
 
+            // 1. Create Room
             if (data.type === 'create_room') {
                 if (rooms[data.room_name]) {
                     ws.send(JSON.stringify({ type: 'error', message: 'Room already exists!' }));
                 } else {
                     rooms[data.room_name] = { password: data.password || "", players: {} };
-                    // Default state-la character ID-a serthu set pandrom
                     rooms[data.room_name].players[playerId] = { x: 0, y: 0, state: data.char_id + '_idle', flip_h: false };
                     clientToRoom[playerId] = data.room_name;
                     ws.send(JSON.stringify({ type: 'room_created', room_name: data.room_name }));
                 }
             }
             
+            // 2. Get Rooms (Filters out full rooms)
             else if (data.type === 'get_rooms') {
-                const roomList = Object.keys(rooms).map(name => ({
-                    name: name,
-                    has_password: rooms[name].password !== "" 
-                }));
+                const roomList = Object.keys(rooms)
+                    .filter(name => Object.keys(rooms[name].players).length < 2) 
+                    .map(name => ({
+                        name: name,
+                        has_password: rooms[name].password !== "" 
+                    }));
                 ws.send(JSON.stringify({ type: 'room_list', rooms: roomList }));
             }
             
+            // 3. Join Room
             else if (data.type === 'join_room') {
                 const room = rooms[data.room_name];
                 
@@ -52,7 +56,6 @@ wss.on('connection', (ws) => {
                     return;
                 }
                 
-                // Player join aagum pothum avanga character ID-a set pandrom
                 room.players[playerId] = { x: 0, y: 0, state: data.char_id + '_idle', flip_h: false };
                 clientToRoom[playerId] = data.room_name;
 
@@ -64,6 +67,7 @@ wss.on('connection', (ws) => {
                 }
             }
             
+            // 4. Update Position
             else if (data.type === 'update_position') {
                 const roomName = clientToRoom[playerId];
                 if (roomName && rooms[roomName]) {
@@ -72,17 +76,33 @@ wss.on('connection', (ws) => {
                 }
             }
             
+            // 5. Update Box
             else if (data.type === 'update_box') {
                 const roomName = clientToRoom[playerId];
                 if (roomName && rooms[roomName]) {
                     broadcastToRoom(roomName, { type: 'update_box', x: data.x, y: data.y }, ws);
                 }
             }
+
+            // 6. Leave Room (Cancels room if host leaves)
+            else if (data.type === 'leave_room') {
+                const roomName = clientToRoom[playerId];
+                if (roomName && rooms[roomName]) {
+                    delete rooms[roomName].players[playerId]; 
+                    broadcastToRoom(roomName, { type: 'player_left', id: playerId });
+                    
+                    if (Object.keys(rooms[roomName].players).length === 0) {
+                        delete rooms[roomName]; 
+                    }
+                }
+                delete clientToRoom[playerId]; 
+            }
         } catch (e) {
             console.log("Error:", e);
         }
     });
 
+    // Handle sudden disconnects
     ws.on('close', () => {
         const roomName = clientToRoom[playerId];
         if (roomName && rooms[roomName]) {
