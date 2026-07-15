@@ -14,7 +14,7 @@ wss.on('connection', (ws) => {
         try {
             const data = JSON.parse(message);
 
-            // 1. Create Room (Ithula 'started: false' add panni irukkom)
+            // 1. Create Room
             if (data.type === 'create_room') {
                 if (rooms[data.room_name]) {
                     ws.send(JSON.stringify({ type: 'error', message: 'Room already exists!' }));
@@ -22,7 +22,7 @@ wss.on('connection', (ws) => {
                     rooms[data.room_name] = { 
                         password: data.password || "", 
                         players: {}, 
-                        started: false // PUDHUSU: Game innum start aagala nu mark pandrom
+                        started: false 
                     };
                     rooms[data.room_name].players[playerId] = { x: 0, y: 0, state: data.char_id + '_idle', flip_h: false };
                     clientToRoom[playerId] = data.room_name;
@@ -30,7 +30,7 @@ wss.on('connection', (ws) => {
                 }
             }
             
-            // 2. Get Rooms (PUDHUSU: Game start aagatha, 2 peruku kela irukka rooms mattum thaan kaatum)
+            // 2. Get Rooms (Filters started and full rooms)
             else if (data.type === 'get_rooms') {
                 const roomList = Object.keys(rooms)
                     .filter(name => !rooms[name].started && Object.keys(rooms[name].players).length < 2) 
@@ -50,7 +50,6 @@ wss.on('connection', (ws) => {
                     return;
                 }
                 
-                // Oruவேளை direct-a link vachu join panna paatha thadukka
                 if (room.started) {
                     ws.send(JSON.stringify({ type: 'error', message: 'Game already started!' }));
                     return;
@@ -72,9 +71,8 @@ wss.on('connection', (ws) => {
                 ws.send(JSON.stringify({ type: 'join_success', room_name: data.room_name, players: room.players }));
                 broadcastToRoom(data.room_name, { type: 'player_joined', id: playerId, data: room.players[playerId] }, ws);
 
-                // Room full aana udane 'started' flag-a true maathi lock pandrom
                 if (Object.keys(room.players).length === 2) {
-                    room.started = true; // PUDHUSU: Ippo intha room permanently hidden in list
+                    room.started = true; 
                     broadcastToRoom(data.room_name, { type: 'start_game' }); 
                 }
             }
@@ -116,6 +114,21 @@ wss.on('connection', (ws) => {
                     }
                 }
                 delete clientToRoom[playerId]; 
+            }
+
+            // 8. Endpoint Trigger (PUDHUSU)
+            else if (data.type === 'activate_endpoint') {
+                const roomName = clientToRoom[playerId];
+                if (roomName && rooms[roomName]) {
+                    wss.clients.forEach((client) => {
+                        if (client.readyState === WebSocket.OPEN && clientToRoom[client.id] === roomName) {
+                            client.send(JSON.stringify({ 
+                                type: 'endpoint_activated', 
+                                endpoint_name: data.endpoint_name 
+                            }));
+                        }
+                    });
+                }
             }
         } catch (e) {
             console.log("Error:", e);
