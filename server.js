@@ -83,6 +83,15 @@ wss.on('connection', (ws) => {
                     broadcastToRoom(roomName, { type: 'update_box', x: data.x, y: data.y }, ws);
                 }
             }
+                            // 6. Restart Level (Pudhusu)
+            else if (data.type === 'restart_level') {
+                const roomName = clientToRoom[playerId];
+                if (roomName && rooms[roomName]) {
+                    // Rendu perukkum restart command anuppurom
+                    broadcastToRoom(roomName, { type: 'restart_level' });
+                }
+            }
+                
 
             // 6. Leave Room (Cancels room if host leaves)
             else if (data.type === 'leave_room') {
