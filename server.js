@@ -30,7 +30,7 @@ wss.on('connection', (ws) => {
                 }
             }
             
-            // 2. Get Rooms (Filters started and full rooms)
+            // 2. Get Rooms
             else if (data.type === 'get_rooms') {
                 const roomList = Object.keys(rooms)
                     .filter(name => !rooms[name].started && Object.keys(rooms[name].players).length < 2) 
@@ -44,30 +44,16 @@ wss.on('connection', (ws) => {
             // 3. Join Room
             else if (data.type === 'join_room') {
                 const room = rooms[data.room_name];
-                
-                if (!room) {
-                    ws.send(JSON.stringify({ type: 'error', message: 'Room not found!' }));
+                if (!room || room.started || Object.keys(room.players).length >= 2) {
+                    ws.send(JSON.stringify({ type: 'error', message: 'Cannot join room!' }));
                     return;
                 }
-                
-                if (room.started) {
-                    ws.send(JSON.stringify({ type: 'error', message: 'Game already started!' }));
-                    return;
-                }
-                
-                if (Object.keys(room.players).length >= 2) {
-                    ws.send(JSON.stringify({ type: 'error', message: 'Room is Full!' }));
-                    return;
-                }
-
                 if (room.password !== "" && room.password !== data.password) {
                     ws.send(JSON.stringify({ type: 'error', message: 'Wrong Password!' }));
                     return;
                 }
-                
                 room.players[playerId] = { x: 0, y: 0, state: data.char_id + '_idle', flip_h: false };
                 clientToRoom[playerId] = data.room_name;
-
                 ws.send(JSON.stringify({ type: 'join_success', room_name: data.room_name, players: room.players }));
                 broadcastToRoom(data.room_name, { type: 'player_joined', id: playerId, data: room.players[playerId] }, ws);
 
@@ -108,26 +94,28 @@ wss.on('connection', (ws) => {
                 if (roomName && rooms[roomName]) {
                     delete rooms[roomName].players[playerId]; 
                     broadcastToRoom(roomName, { type: 'player_left', id: playerId });
-                    
-                    if (Object.keys(rooms[roomName].players).length === 0) {
-                        delete rooms[roomName]; 
-                    }
+                    if (Object.keys(rooms[roomName].players).length === 0) delete rooms[roomName]; 
                 }
                 delete clientToRoom[playerId]; 
             }
 
-            // 8. Endpoint Trigger (PUDHUSU)
+            // 8. Endpoint Sync
             else if (data.type === 'activate_endpoint') {
                 const roomName = clientToRoom[playerId];
                 if (roomName && rooms[roomName]) {
                     wss.clients.forEach((client) => {
                         if (client.readyState === WebSocket.OPEN && clientToRoom[client.id] === roomName) {
-                            client.send(JSON.stringify({ 
-                                type: 'endpoint_activated', 
-                                endpoint_name: data.endpoint_name 
-                            }));
+                            client.send(JSON.stringify({ type: 'endpoint_activated', endpoint_name: data.endpoint_name }));
                         }
                     });
+                }
+            }
+
+            // 9. Global Spike Elimination (PUDHUSU)
+            else if (data.type === 'trigger_elimination') {
+                const roomName = clientToRoom[playerId];
+                if (roomName && rooms[roomName]) {
+                    broadcastToRoom(roomName, { type: 'eliminate_players' });
                 }
             }
         } catch (e) {
@@ -140,10 +128,7 @@ wss.on('connection', (ws) => {
         if (roomName && rooms[roomName]) {
             delete rooms[roomName].players[playerId];
             broadcastToRoom(roomName, { type: 'player_left', id: playerId });
-            
-            if (Object.keys(rooms[roomName].players).length === 0) {
-                delete rooms[roomName];
-            }
+            if (Object.keys(rooms[roomName].players).length === 0) delete rooms[roomName];
         }
         delete clientToRoom[playerId];
     });
