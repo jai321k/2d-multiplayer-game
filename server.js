@@ -111,13 +111,24 @@ wss.on('connection', (ws) => {
                 }
             }
 
-            // 9. Global Spike Elimination (PUDHUSU)
+            // 9. Global Spike Elimination
             else if (data.type === 'trigger_elimination') {
                 const roomName = clientToRoom[playerId];
                 if (roomName && rooms[roomName]) {
                     broadcastToRoom(roomName, { type: 'eliminate_players' });
                 }
             }
+
+            // 10. Switch Activated Sync (PUDHUSU)
+            else if (data.type === 'switch_activated') {
+                const roomName = clientToRoom[playerId];
+                if (roomName && rooms[roomName]) {
+                    // 'ws'-a 3rd parameter-a pass pandrom, so touch panna player-ku thirumba pogathu.
+                    // Matha player(s)-ku mattum switch data pogum.
+                    broadcastToRoom(roomName, { type: 'switch_activated', switch_id: data.switch_id }, ws);
+                }
+            }
+
         } catch (e) {
             console.log("Error:", e);
         }
@@ -134,6 +145,7 @@ wss.on('connection', (ws) => {
     });
 });
 
+// Helper function: Antha room-la irukka ellarukkum data anuppum
 function broadcastToRoom(roomName, data, excludeWs = null) {
     const message = JSON.stringify(data);
     wss.clients.forEach((client) => {
