@@ -21,6 +21,7 @@ wss.on('connection', (ws) => {
                 } else {
                     rooms[data.room_name] = { 
                         password: data.password || "", 
+                        level: data.level || 1, // PUDHUSU: Level data-va save pandrom
                         players: {}, 
                         started: false 
                     };
@@ -36,7 +37,8 @@ wss.on('connection', (ws) => {
                     .filter(name => !rooms[name].started && Object.keys(rooms[name].players).length < 2) 
                     .map(name => ({
                         name: name,
-                        has_password: rooms[name].password !== "" 
+                        has_password: rooms[name].password !== "",
+                        level: rooms[name].level // PUDHUSU: Room list-la level-ayum anuppurom
                     }));
                 ws.send(JSON.stringify({ type: 'room_list', rooms: roomList }));
             }
@@ -59,7 +61,8 @@ wss.on('connection', (ws) => {
 
                 if (Object.keys(room.players).length === 2) {
                     room.started = true; 
-                    broadcastToRoom(data.room_name, { type: 'start_game' }); 
+                    // PUDHUSU: Game start aagum pothu entha level-nu client-ku anuppurom
+                    broadcastToRoom(data.room_name, { type: 'start_game', level: room.level }); 
                 }
             }
             
@@ -119,7 +122,7 @@ wss.on('connection', (ws) => {
                 }
             }
 
-            // 10. Switch Activated Sync (PUDHUSU)
+            // 10. Switch Activated Sync 
             else if (data.type === 'switch_activated') {
                 const roomName = clientToRoom[playerId];
                 if (roomName && rooms[roomName]) {
