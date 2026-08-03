@@ -21,7 +21,7 @@ wss.on('connection', (ws) => {
                 } else {
                     rooms[data.room_name] = { 
                         password: data.password || "", 
-                        level: data.level || 1, // PUDHUSU: Level data-va save pandrom
+                        level: data.level || 1, 
                         players: {}, 
                         started: false 
                     };
@@ -38,7 +38,7 @@ wss.on('connection', (ws) => {
                     .map(name => ({
                         name: name,
                         has_password: rooms[name].password !== "",
-                        level: rooms[name].level // PUDHUSU: Room list-la level-ayum anuppurom
+                        level: rooms[name].level 
                     }));
                 ws.send(JSON.stringify({ type: 'room_list', rooms: roomList }));
             }
@@ -61,7 +61,6 @@ wss.on('connection', (ws) => {
 
                 if (Object.keys(room.players).length === 2) {
                     room.started = true; 
-                    // PUDHUSU: Game start aagum pothu entha level-nu client-ku anuppurom
                     broadcastToRoom(data.room_name, { type: 'start_game', level: room.level }); 
                 }
             }
@@ -126,9 +125,16 @@ wss.on('connection', (ws) => {
             else if (data.type === 'switch_activated') {
                 const roomName = clientToRoom[playerId];
                 if (roomName && rooms[roomName]) {
-                    // 'ws'-a 3rd parameter-a pass pandrom, so touch panna player-ku thirumba pogathu.
-                    // Matha player(s)-ku mattum switch data pogum.
                     broadcastToRoom(roomName, { type: 'switch_activated', switch_id: data.switch_id }, ws);
+                }
+            }
+            
+            // 11. Chat System Sync (PUDHUSU)
+            else if (data.type === 'chat_message') {
+                const roomName = clientToRoom[playerId];
+                if (roomName && rooms[roomName]) {
+                    // Chat text-a room-la irukka ellarukkum (anuppuna player-kum serthu) anuppurom
+                    broadcastToRoom(roomName, { type: 'chat_message', id: playerId, text: data.text });
                 }
             }
 
