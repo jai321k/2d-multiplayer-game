@@ -78,7 +78,8 @@ wss.on('connection', (ws) => {
             else if (data.type === 'update_box') {
                 const roomName = clientToRoom[playerId];
                 if (roomName && rooms[roomName]) {
-                    broadcastToRoom(roomName, { type: 'update_box', x: data.x, y: data.y }, ws);
+                    // PUDHUSU: box_name-a ulla serthu matha player-ku anuppurom!
+                    broadcastToRoom(roomName, { type: 'update_box', box_name: data.box_name, x: data.x, y: data.y }, ws);
                 }
             }
 
@@ -129,11 +130,10 @@ wss.on('connection', (ws) => {
                 }
             }
             
-            // 11. Chat System Sync (PUDHUSU)
+            // 11. Chat System Sync
             else if (data.type === 'chat_message') {
                 const roomName = clientToRoom[playerId];
                 if (roomName && rooms[roomName]) {
-                    // Chat text-a room-la irukka ellarukkum (anuppuna player-kum serthu) anuppurom
                     broadcastToRoom(roomName, { type: 'chat_message', id: playerId, text: data.text });
                 }
             }
@@ -163,3 +163,4 @@ function broadcastToRoom(roomName, data, excludeWs = null) {
         }
     });
 }
+
