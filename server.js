@@ -78,7 +78,6 @@ wss.on('connection', (ws) => {
             else if (data.type === 'update_box') {
                 const roomName = clientToRoom[playerId];
                 if (roomName && rooms[roomName]) {
-                    // PUDHUSU: box_name-a ulla serthu matha player-ku anuppurom!
                     broadcastToRoom(roomName, { type: 'update_box', box_name: data.box_name, x: data.x, y: data.y }, ws);
                 }
             }
@@ -138,6 +137,14 @@ wss.on('connection', (ws) => {
                 }
             }
 
+            // 12. Falling Platform Sync
+            else if (data.type === 'platform_fell') {
+                const roomName = clientToRoom[playerId];
+                if (roomName && rooms[roomName]) {
+                    broadcastToRoom(roomName, { type: 'platform_fell', platform_name: data.platform_name }, ws);
+                }
+            }
+
         } catch (e) {
             console.log("Error:", e);
         }
@@ -154,7 +161,6 @@ wss.on('connection', (ws) => {
     });
 });
 
-// Helper function: Antha room-la irukka ellarukkum data anuppum
 function broadcastToRoom(roomName, data, excludeWs = null) {
     const message = JSON.stringify(data);
     wss.clients.forEach((client) => {
@@ -163,4 +169,3 @@ function broadcastToRoom(roomName, data, excludeWs = null) {
         }
     });
 }
-
