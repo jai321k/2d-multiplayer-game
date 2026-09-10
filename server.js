@@ -25,7 +25,14 @@ wss.on('connection', (ws) => {
                         players: {}, 
                         started: false 
                     };
-                    rooms[data.room_name].players[playerId] = { x: 0, y: 0, state: data.char_id + '_idle', flip_h: false };
+                    // PROPER FIX: Username-a server-e natively store pandrathu
+                    rooms[data.room_name].players[playerId] = { 
+                        x: 0, 
+                        y: 0, 
+                        state: data.char_id + '_idle', 
+                        flip_h: false,
+                        username: data.username || "Guest" 
+                    };
                     clientToRoom[playerId] = data.room_name;
                     ws.send(JSON.stringify({ type: 'room_created', room_name: data.room_name }));
                 }
@@ -54,7 +61,14 @@ wss.on('connection', (ws) => {
                     ws.send(JSON.stringify({ type: 'error', message: 'Wrong Password!' }));
                     return;
                 }
-                room.players[playerId] = { x: 0, y: 0, state: data.char_id + '_idle', flip_h: false };
+                // PROPER FIX: Username-a store pandrathu
+                room.players[playerId] = { 
+                    x: 0, 
+                    y: 0, 
+                    state: data.char_id + '_idle', 
+                    flip_h: false,
+                    username: data.username || "Guest"
+                };
                 clientToRoom[playerId] = data.room_name;
                 ws.send(JSON.stringify({ type: 'join_success', room_name: data.room_name, players: room.players }));
                 broadcastToRoom(data.room_name, { type: 'player_joined', id: playerId, data: room.players[playerId] }, ws);
@@ -69,7 +83,13 @@ wss.on('connection', (ws) => {
             else if (data.type === 'update_position') {
                 const roomName = clientToRoom[playerId];
                 if (roomName && rooms[roomName]) {
-                    rooms[roomName].players[playerId] = { x: data.x, y: data.y, state: data.state, flip_h: data.flip_h };
+                    rooms[roomName].players[playerId] = { 
+                        x: data.x, 
+                        y: data.y, 
+                        state: data.state, 
+                        flip_h: data.flip_h,
+                        username: data.username || rooms[roomName].players[playerId].username // Seamless username sync
+                    };
                     broadcastToRoom(roomName, { type: 'update_position', id: playerId, data: rooms[roomName].players[playerId] }, ws);
                 }
             }
@@ -113,11 +133,13 @@ wss.on('connection', (ws) => {
                 }
             }
 
-            // 9. Global Spike Elimination
+            // 9. Global Spike Elimination (PROPER FIX!)
             else if (data.type === 'trigger_elimination') {
                 const roomName = clientToRoom[playerId];
                 if (roomName && rooms[roomName]) {
-                    broadcastToRoom(roomName, { type: 'eliminate_players' });
+                    // Client anuppura ID-a eduthu ellarukkum anuppurom
+                    const deadId = data.dead_id || playerId; 
+                    broadcastToRoom(roomName, { type: 'eliminate_players', dead_id: deadId });
                 }
             }
 
