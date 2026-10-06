@@ -1,4 +1,3 @@
-const WebSocket = require('ws');
 const PORT = process.env.PORT || 10000;
 const wss = new WebSocket.Server({ port: PORT });
 
@@ -25,7 +24,6 @@ wss.on('connection', (ws) => {
                         players: {}, 
                         started: false 
                     };
-                    // PROPER FIX: Username-a server-e natively store pandrathu
                     rooms[data.room_name].players[playerId] = { 
                         x: 0, 
                         y: 0, 
@@ -61,7 +59,6 @@ wss.on('connection', (ws) => {
                     ws.send(JSON.stringify({ type: 'error', message: 'Wrong Password!' }));
                     return;
                 }
-                // PROPER FIX: Username-a store pandrathu
                 room.players[playerId] = { 
                     x: 0, 
                     y: 0, 
@@ -88,7 +85,7 @@ wss.on('connection', (ws) => {
                         y: data.y, 
                         state: data.state, 
                         flip_h: data.flip_h,
-                        username: data.username || rooms[roomName].players[playerId].username // Seamless username sync
+                        username: data.username || rooms[roomName].players[playerId].username 
                     };
                     broadcastToRoom(roomName, { type: 'update_position', id: playerId, data: rooms[roomName].players[playerId] }, ws);
                 }
@@ -133,11 +130,10 @@ wss.on('connection', (ws) => {
                 }
             }
 
-            // 9. Global Spike Elimination (PROPER FIX!)
+            // 9. Global Spike Elimination
             else if (data.type === 'trigger_elimination') {
                 const roomName = clientToRoom[playerId];
                 if (roomName && rooms[roomName]) {
-                    // Client anuppura ID-a eduthu ellarukkum anuppurom
                     const deadId = data.dead_id || playerId; 
                     broadcastToRoom(roomName, { type: 'eliminate_players', dead_id: deadId });
                 }
@@ -164,6 +160,50 @@ wss.on('connection', (ws) => {
                 const roomName = clientToRoom[playerId];
                 if (roomName && rooms[roomName]) {
                     broadcastToRoom(roomName, { type: 'platform_fell', platform_name: data.platform_name }, ws);
+                }
+            }
+
+            // ==========================================
+            // 13. WebRTC: Offer (Player 1 calling Player 2)
+            // ==========================================
+            else if (data.type === 'webrtc_offer') {
+                const roomName = clientToRoom[playerId];
+                if (roomName && rooms[roomName]) {
+                    broadcastToRoom(roomName, { 
+                        type: 'webrtc_offer', 
+                        sdp: data.sdp, 
+                        sender_id: playerId 
+                    }, ws);
+                }
+            }
+
+            // ==========================================
+            // 14. WebRTC: Answer (Player 2 accepting call)
+            // ==========================================
+            else if (data.type === 'webrtc_answer') {
+                const roomName = clientToRoom[playerId];
+                if (roomName && rooms[roomName]) {
+                    broadcastToRoom(roomName, { 
+                        type: 'webrtc_answer', 
+                        sdp: data.sdp, 
+                        sender_id: playerId 
+                    }, ws);
+                }
+            }
+
+            // ==========================================
+            // 15. WebRTC: ICE Candidate (Network routing data)
+            // ==========================================
+            else if (data.type === 'webrtc_ice_candidate') {
+                const roomName = clientToRoom[playerId];
+                if (roomName && rooms[roomName]) {
+                    broadcastToRoom(roomName, { 
+                        type: 'webrtc_ice_candidate', 
+                        media: data.media, 
+                        index: data.index, 
+                        name: data.name, 
+                        sender_id: playerId 
+                    }, ws);
                 }
             }
 
